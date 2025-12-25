@@ -1,0 +1,170 @@
+스마트 라이더 앱 개발 리드미
+프로젝트 개요
+스마트 라이더 앱은 건물 정보를 등록, 조회, 관리할 수 있는 React 기반의 웹 애플리케이션입니다. Firebase를 백엔드로 사용하며, 로컬 데이터 저장을 위해 IndexedDB를 활용합니다.
+주요 기능
+
+건물 등록
+건물 조회 (검색 기능 포함)
+건물 상세 정보 확인 및 수정
+공지사항 및 제안하기 기능
+사용자 인증 (로그인/로그아웃)
+
+기술 스택
+
+Frontend: React, React Router
+Backend: Firebase (Realtime Database, Authentication, Storage)
+로컬 저장소: IndexedDB, Local Storage
+스타일링: Tailwind CSS
+
+주요 컴포넌트
+
+App.js: 메인 애플리케이션 컴포넌트
+Home.js: 홈 화면
+Register.js: 건물 등록 화면
+Search.js: 건물 검색 화면
+Detail.js: 건물 상세 정보 화면
+SideMenu.js: 사이드 메뉴 컴포넌트
+
+데이터 구조
+
+Firebase Realtime Database:
+
+buildings: 건물 기본 정보 (이름, 특이사항, 샛길 정보, 이미지 URL 등)
+notices: 공지사항
+popup: 팝업 정보
+
+
+IndexedDB:
+
+buildings: Firebase의 buildings 데이터 미러링
+
+
+Local Storage:
+
+buildingMemos: 각 건물의 입출입 특이사항 메모 (사용자별 개인 데이터)
+
+
+
+주요 문제점 및 해결 과정
+1. 데이터 마이그레이션 및 동기화
+문제: Firebase에서 IndexedDB로 데이터 마이그레이션 후 최신 데이터가 반영되지 않는 문제
+해결: App.js에서 마이그레이션 로직을 수정하여 IndexedDB에 데이터가 없을 때만 Firebase에서 데이터를 가져오도록 변경
+javascriptCopyuseEffect(() => {
+  const loadData = async () => {
+    try {
+      const buildingsList = await getAllBuildings();
+      if (buildingsList.length === 0) {
+        // Firebase에서 데이터 가져오기 및 IndexedDB에 저장
+        // ...
+      } else {
+        setBuildings(buildingsList.reverse());
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  loadData();
+}, []);
+2. 홈 화면 최근 등록 건물 표시 문제
+문제: 홈 화면에서 최근 등록된 건물 리스트가 표시되지 않음
+해결: Home.js 컴포넌트에서 buildings prop을 사용하여 최근 5개 건물을 표시하도록 수정
+javascriptCopyfunction Home({ buildings }) {
+  return (
+    <div>
+      {/* ... */}
+      <h2>최근 등록된 건물</h2>
+      <ul>
+        {buildings.slice(0, 5).map(building => (
+          <li key={building.id}>{building.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+3. 입출입 특이사항 메모 데이터 불러오기 문제
+문제: Local Storage에 저장된 입출입 특이사항 메모가 표시되지 않음
+해결: Detail.js와 Search.js에서 Local Storage 데이터 로딩 로직을 수정하고 디버깅 로그 추가
+Detail.js:
+javascriptCopyuseEffect(() => {
+  const loadBuilding = async () => {
+    // ...
+    const memos = getLocalStorage('buildingMemos') || {};
+    const localMemo = memos[id] || '';
+    console.log('Local memo:', localMemo);
+    setBuilding({ ...buildingData, memo: localMemo });
+    // ...
+  };
+
+  loadBuilding();
+}, [id, navigate]);
+Search.js:
+javascriptCopyconst InfoIndicator = ({ building }) => {
+  const memos = getLocalStorage('buildingMemos') || {};
+  const localMemo = memos[building.id] || '';
+  console.log(`Memo for building ${building.id}:`, localMemo);
+
+  // ... 표시 로직
+};
+4. 뒤로 가기 버튼 동작 개선
+문제: 홈 화면에서 뒤로 가기 버튼 클릭 시 이전 화면으로 이동
+해결: App.js에서 커스텀 뒤로 가기 핸들러 추가
+javascriptCopyuseEffect(() => {
+  let backPressCount = 0;
+  let backPressTimer;
+
+  const handleBackButton = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      backPressCount++;
+      if (backPressCount === 2) {
+        alert('앱을 종료합니다.');
+      } else {
+        backPressTimer = setTimeout(() => {
+          backPressCount = 0;
+        }, 2000);
+      }
+    } else {
+      navigate(-1);
+    }
+  };
+
+  window.addEventListener('popstate', handleBackButton);
+
+  return () => {
+    window.removeEventListener('popstate', handleBackButton);
+    clearTimeout(backPressTimer);
+  };
+}, [location, navigate]);
+현재 남아있는 문제점
+
+이전에 저장한 입출입 특이사항 메모 데이터가 여전히 로드되지 않음
+
+로컬 스토리지의 'buildingMemos' 키 데이터 확인 필요
+데이터 저장 및 로드 과정에 대한 추가 디버깅 필요
+
+
+데이터 동기화 문제
+
+Firebase와 IndexedDB, Local Storage 간의 데이터 동기화 메커니즘 개선 필요
+
+
+
+향후 개선 사항
+
+오프라인 지원 강화
+데이터 백업 및 복구 기능 추가
+성능 최적화 (대용량 데이터 처리)
+사용자 권한 관리 개선
+UI/UX 개선
+
+트러블슈팅 팁
+
+콘솔 로그 확인: 개발자 도구의 콘솔에서 데이터 로딩 및 저장 과정 로그 확인
+IndexedDB 및 Local Storage 데이터 확인: 개발자 도구의 Application 탭에서 저장된 데이터 직접 확인
+네트워크 연결 상태 확인: Firebase 연결 문제 여부 체크
+단계별 디버깅: 데이터 흐름을 따라 단계별로 로그를 추가하여 문제 지점 파악
+
+이 리드미 파일을 통해 프로젝트의 전반적인 구조와 주요 문제점, 해결 과정을 파악할 수 있습니다. 현재 남아있는 문제를 해결하기 위해서는 추가적인 디버깅과 데이터 흐름 분석이 필요할 것 같습니다.
